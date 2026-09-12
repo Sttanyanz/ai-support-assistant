@@ -29,7 +29,7 @@ export default function App() {
         body: JSON.stringify({
           source:"SMS",
           userContact:"+79001112233",
-          message: userMessage,
+          text: userMessage,
         }),
       });
 
