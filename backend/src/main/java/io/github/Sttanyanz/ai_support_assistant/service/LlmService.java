@@ -84,13 +84,13 @@ public class LlmService {
                 ЖЁСТКИЕ ПРАВИЛА:
                 1. Уточнение допустимо ТОЛЬКО если без ответа невозможно решить проблему.
                 2. При сомнении — выбирай CREATE_TICKET, а не ASK_CLARIFICATION.
-                3. Всегда заполняй priority и category для CREATE_TICKET
+                3. Всегда з
 
                 ФОРМАТ ОТВЕТА (строго JSON, без markdown):
                 {
                   "action": "ASK_CLARIFICATION" или "CREATE_TICKET",
                   "question": "один короткий вопрос (только если action = ASK_CLARIFICATION)",
-                  "category": "категория (только если action = CREATE_TICKET)",
+                  "category": "категория",
                   "priority": "LOW | MEDIUM | HIGH | CRITICAL"
                 }
                 """.formatted(history);
@@ -104,17 +104,26 @@ public class LlmService {
 
             content = content.replaceAll("```json", "").replaceAll("```", "").trim();
             JsonNode json = objectMapper.readTree(content);
+            String action = safeText(json, "action", "CREATE_TICKET");
+            String category = safeText(json, "category", "другое");
+            String priority = safeText(json, "priority", "MEDIUM");
+            String question = safeText(json, "question", "");
 
-            return new LlmResponse(
-                    json.path("action").asText("CREATE_TICKET"),
-                    json.path("category").asText("другое"),
-                    json.path("priority").asText("MEDIUM"),
-                    json.path("question").asText("")
-            );
+            return new LlmResponse(action, category, priority, question);
         } catch (Exception e) {
             log.error("Не удалось разобрать ответ LLM: {}", raw, e);
             throw new RuntimeException("Ошибка разбора ответа GigaChat", e);
         }
+    }
+
+
+    private String safeText(JsonNode node, String field, String fallback) {
+        JsonNode value = node.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return fallback;
+        }
+        String text = value.asText("").trim();
+        return text.isEmpty() ? fallback : text;
     }
 
 }

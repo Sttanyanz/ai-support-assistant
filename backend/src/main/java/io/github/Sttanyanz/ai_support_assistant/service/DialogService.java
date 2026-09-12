@@ -7,6 +7,7 @@ import io.github.Sttanyanz.ai_support_assistant.model.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Comparator;
 import java.util.List;
@@ -52,6 +53,8 @@ public class DialogService {
     }
 
     private DialogResponse createTicket(Dialog dialog, String category, String priority) {
+        if (category == null || category.isBlank()) category = "другое";
+        if (priority == null || priority.isBlank()) priority = "MEDIUM";
         Ticket ticket = ticketService.create(dialog, category, priority);
         dialog.setTicketId(ticket.getId());
         dialog.setCategory(category);

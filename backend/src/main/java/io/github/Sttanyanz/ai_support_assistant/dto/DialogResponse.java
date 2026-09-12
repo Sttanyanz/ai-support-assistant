@@ -1,6 +1,7 @@
 package io.github.Sttanyanz.ai_support_assistant.dto;
 
 import io.github.Sttanyanz.ai_support_assistant.model.Ticket;
+import tools.jackson.databind.JsonNode;
 
 public record DialogResponse(
         String dialogId,
@@ -8,6 +9,7 @@ public record DialogResponse(
         String question,
         Ticket ticket
 ) {
+
     public static DialogResponse clarification(String dialogId, String question) {
         return new DialogResponse(dialogId, "ASK_CLARIFICATION", question, null);
     }
