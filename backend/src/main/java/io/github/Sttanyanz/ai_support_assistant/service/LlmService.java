@@ -1,14 +1,17 @@
 package io.github.Sttanyanz.ai_support_assistant.service;
 
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.JsonNode;
 import io.github.Sttanyanz.ai_support_assistant.dto.LlmResponse;
+import io.github.Sttanyanz.ai_support_assistant.model.Dialog;
+import io.github.Sttanyanz.ai_support_assistant.model.Message;
+import io.github.Sttanyanz.ai_support_assistant.model.MessageSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -27,22 +30,29 @@ public class LlmService {
 
     @Value("${gigachat.model}")
     private String model;
+    /**
+     * Быстрая проверка LLM без полноценного диалога.
+     */
+    public LlmResponse analyze(String text) {
+        Dialog temp = Dialog.newDialog("health-check", MessageSource.CHAT);
+        temp.addMessage(Message.user(MessageSource.CHAT, text));
+        return analyze(temp);
+    }
 
-    public LlmResponse analyze(String userText) {
+    public LlmResponse analyze(Dialog dialog) {
         String token = authService.getAccessToken();
-        String prompt = buildPrompt(userText);
+        String prompt = buildPrompt(dialog);
 
         Map<String, Object> body = Map.of(
                 "model", model,
                 "messages", List.of(
                         Map.of("role", "system", "content",
-                                "Ты — помощник техподдержки. Отвечай СТРОГО в формате JSON без markdown."),
+                                "Ты — ассистент техподдержки. Отвечай СТРОГО в формате JSON, без markdown и пояснений."),
                         Map.of("role", "user", "content", prompt)
                 ),
-                "temperature", 0.2
+                "temperature", 0.1
         );
 
-        long start = System.currentTimeMillis();
         String raw = gigachatRestClient.post()
                 .uri(apiUrl)
                 .header("Authorization", "Bearer " + token)
@@ -51,52 +61,59 @@ public class LlmService {
                 .retrieve()
                 .body(String.class);
 
-        log.info("GigaChat ответил за {} мс", System.currentTimeMillis() - start);
-        log.debug("Raw response: {}", raw);
-
+        log.debug("Raw LLM response: {}", raw);
         return parseResponse(raw);
     }
 
-    private String buildPrompt(String text) {
+    private String buildPrompt(Dialog dialog) {
+        StringBuilder history = new StringBuilder();
+        for (Message m : dialog.getHistory()) {
+            String who = (m.role() == Message.Role.USER) ? "Пользователь" : "Ассистент";
+            history.append(who).append(": ").append(m.text()).append("\n");
+        }
+
         return """
-                Проанализируй обращение пользователя в техподдержку.
+                Проанализируй диалог пользователя с техподдержкой.
 
-                Обращение:
-                \"\"\"%s\"\"\"
+                ДИАЛОГ:
+                %s
 
-                Верни JSON с полями:
-                - category: категория проблемы (Wi-Fi, учетные записи, образовательные платформы, оборудование, другое)
-                - priority: LOW, MEDIUM или HIGH
-                - missingInfo: true, если не хватает данных для решения
-                - missingDetails: что именно нужно уточнить (если missingInfo = true)
-                - draftResponse: черновик ответа пользователю
-                - action: CREATE_TICKET (если всё ясно), ASK_CLARIFICATION (если не хватает данных), DRAFT_REPLY (если нужен только черновик)
-                """.formatted(text);
+                ЗАДАЧА: определить, достаточно ли информации для решения проблемы.
+                Категории: Wi-Fi, учетные записи, образовательные платформы, оборудование, другое.
+
+                ЖЁСТКИЕ ПРАВИЛА:
+                1. Уточнение допустимо ТОЛЬКО если без ответа невозможно решить проблему.
+                2. При сомнении — выбирай CREATE_TICKET, а не ASK_CLARIFICATION.
+
+                ФОРМАТ ОТВЕТА (строго JSON, без markdown):
+                {
+                  "action": "ASK_CLARIFICATION" или "CREATE_TICKET",
+                  "question": "один короткий вопрос (только если action = ASK_CLARIFICATION)",
+                  "category": "категория (только если action = CREATE_TICKET)",
+                  "priority": "LOW | MEDIUM | HIGH (только если action = CREATE_TICKET)"
+                }
+                """.formatted(history);
     }
 
     private LlmResponse parseResponse(String raw) {
         try {
             JsonNode root = objectMapper.readTree(raw);
-            String content = root
-                    .path("choices").get(0)
-                    .path("message")
-                    .path("content").asText();
+            String content = root.path("choices").get(0)
+                    .path("message").path("content").asText();
 
-            // GigaChat иногда оборачивает JSON в ```json ... ```
             content = content.replaceAll("```json", "").replaceAll("```", "").trim();
-
             JsonNode json = objectMapper.readTree(content);
+
             return new LlmResponse(
+                    json.path("action").asText("CREATE_TICKET"),
                     json.path("category").asText("другое"),
                     json.path("priority").asText("MEDIUM"),
-                    json.path("missingInfo").asBoolean(false),
-                    json.path("missingDetails").asText(""),
-                    json.path("draftResponse").asText(""),
-                    json.path("action").asText("CREATE_TICKET")
+                    json.path("question").asText("")
             );
         } catch (Exception e) {
             log.error("Не удалось разобрать ответ LLM: {}", raw, e);
             throw new RuntimeException("Ошибка разбора ответа GigaChat", e);
         }
     }
+
 }
