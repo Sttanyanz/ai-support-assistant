@@ -84,13 +84,14 @@ public class LlmService {
                 ЖЁСТКИЕ ПРАВИЛА:
                 1. Уточнение допустимо ТОЛЬКО если без ответа невозможно решить проблему.
                 2. При сомнении — выбирай CREATE_TICKET, а не ASK_CLARIFICATION.
+                3. Всегда заполняй priority и category для CREATE_TICKET
 
                 ФОРМАТ ОТВЕТА (строго JSON, без markdown):
                 {
                   "action": "ASK_CLARIFICATION" или "CREATE_TICKET",
                   "question": "один короткий вопрос (только если action = ASK_CLARIFICATION)",
                   "category": "категория (только если action = CREATE_TICKET)",
-                  "priority": "LOW | MEDIUM | HIGH (только если action = CREATE_TICKET)"
+                  "priority": "LOW | MEDIUM | HIGH | CRITICAL"
                 }
                 """.formatted(history);
     }
