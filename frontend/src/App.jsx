@@ -29,7 +29,7 @@ export default function App() {
         body: JSON.stringify({
           source:"SMS",
           userContact:"+79001112233",
-          text: userMessage,
+          message: userMessage,
         }),
       });
 
@@ -65,7 +65,16 @@ export default function App() {
   return (
     <div style={styles.page}>
       <div style={styles.chat}>
-        <h2>Техподдержка</h2>
+        <div style={styles.header}>
+          <h2>Техподдержка</h2>
+
+          <button
+            onClick={() => window.location.href = "/admin"}
+            style={styles.adminButton}
+          >
+            Admin
+          </button>
+        </div>
 
         <div style={styles.messages}>
           {messages.map((msg, index) => (
@@ -108,6 +117,20 @@ export default function App() {
 }
 
 const styles = {
+      header: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+
+    adminButton: {
+      padding: "8px 14px",
+      border: "none",
+      borderRadius: "6px",
+      background: "#333",
+      color: "white",
+      cursor: "pointer",
+    },
   page: {
     minHeight: "100vh",
     background: "#f5f5f5",
