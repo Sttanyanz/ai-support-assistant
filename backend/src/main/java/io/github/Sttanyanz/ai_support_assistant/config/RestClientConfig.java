@@ -3,7 +3,9 @@ package io.github.Sttanyanz.ai_support_assistant.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.ObjectMapper;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -17,7 +19,7 @@ import java.time.Duration;
 public class RestClientConfig {
 
     @Bean
-    public RestClient gigachatRestClient() throws Exception {
+    public RestClient gigachatRestClient(ObjectMapper objectMapper) throws Exception {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, new TrustManager[]{
                 new X509TrustManager() {
@@ -34,6 +36,9 @@ public class RestClientConfig {
 
         return RestClient.builder()
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
+                .configureMessageConverters(client -> client
+                        .registerDefaults()
+                        .withJsonConverter(new JacksonJsonHttpMessageConverter()))
                 .build();
     }
 }

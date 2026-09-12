@@ -1,21 +1,11 @@
 package io.github.Sttanyanz.ai_support_assistant.service;
 
+import io.github.Sttanyanz.ai_support_assistant.dto.TokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.net.http.HttpClient;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -35,27 +25,8 @@ public class GigachatAuthService {
     private String accessToken;
     private long expiresAt;
 
-    public GigachatAuthService() throws Exception {
-        // Отключаем проверку SSL-сертификата — только для хакатона!
-        // GigaChat использует сертификаты НУЦ Минцифры, которых нет в стандартном truststore JDK.
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(null, new TrustManager[]{
-                new X509TrustManager() {
-                    public void checkClientTrusted(X509Certificate[] chain, String authType) {}
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) {}
-                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-                }
-        }, new SecureRandom());
-
-        HttpClient httpClient = HttpClient.newBuilder()
-                .sslContext(sslContext)
-                .connectTimeout(Duration.ofSeconds(30))
-                .build();
-
-        this.restClient = RestClient.builder()
-                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
-                .build();
-
+    public GigachatAuthService(RestClient gigachatRestClient) {
+        this.restClient = gigachatRestClient;
         log.info("GigaChatAuthService инициализирован, scope={}", scope);
     }
 
@@ -73,14 +44,8 @@ public class GigachatAuthService {
         String rquid = UUID.randomUUID().toString();
         log.debug("RqUID: {}", rquid);
 
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("scope", scope);
-
         long start = System.currentTimeMillis();
         try {
-            log.info("Scope raw: [{}], length: {}, bytes: {}",
-                    scope, scope.length(),
-                    java.util.Arrays.toString(scope.getBytes()));
             TokenResponse response = restClient.post()
                 .uri(authUrl)
                 .header("Authorization", "Bearer " + authKey)
@@ -122,6 +87,4 @@ public class GigachatAuthService {
         if (secret == null || secret.length() < 12) return "***";
         return secret.substring(0, 8);
     }
-
-    public record TokenResponse(String access_token, long exp) {}
 }
